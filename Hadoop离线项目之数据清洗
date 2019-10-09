@@ -1,0 +1,137 @@
+https://blog.csdn.net/liweihope/article/details/88832745
+
+package com.ruozedata.hadoop.utils;
+
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Locale;
+
+public class LogUtils {
+    DateFormat sourceFormat = new SimpleDateFormat("dd/MMM/yyyy:HH:mm:ss", Locale.ENGLISH);
+    DateFormat targetFormat = new SimpleDateFormat("yyyyMMddHHmmss");
+
+    /**
+     * 日志文件解析，对内容字段的处理
+     * 按\t分割
+     */
+    public String parse(String log){
+        String result="";
+        try {
+            String[] splits = log.split("\t");
+            String cdn = splits[0];
+            String region = splits[1];
+            String level = splits[3];
+            String timeStr = splits[4];
+            String time = timeStr.substring(1,timeStr.length()-7);
+            time = targetFormat.format(sourceFormat.parse(time));
+            String ip = splits[6];
+            String domain = splits[10];
+            String url = splits[12];
+            String traffic = splits[20];
+
+//            System.out.println(cdn);
+//            System.out.println(region);
+//            System.out.println(level);
+//            System.out.println(time);
+//            System.out.println(ip);
+//            System.out.println(domain);
+//            System.out.println(url);
+//            System.out.println(traffic);
+
+            //面试题：StringBuilder和StringBuffer的区别：线程安全不安全
+            //解析出来的日志 → external table location是给外部表用的，所以用\t键隔开,用append拼接
+            StringBuilder builder = new StringBuilder("");
+            builder.append(cdn).append("\t")
+                    .append(region).append("\t")
+                    .append(level).append("\t")
+                    .append(time).append("\t")
+                    .append(ip).append("\t")
+                    .append(domain).append("\t")
+                    .append(url).append("\t")
+                    .append(traffic);
+
+            result = builder.toString();
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
+
+        return result;
+    }
+}
+
+
+package com.ruozedata.hadoop.utils;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+public class TestLogUtils {
+
+    private LogUtils utils;
+    @Before
+    public void setUp(){
+        utils=new LogUtils();
+    }
+
+    @After
+    public void tearDown(){
+        utils=null;
+    }
+
+    @Test
+    public void testLogParse(){
+        String log="baidu\tCN\tA\tE\t[17/Jul/2018:17:07:50 +0800]\t2\t223.104.18.110\t-\t112.29.213.35:80\t0\tv2.go2yd.com\tGET\thttp://v1.go2yd.com/user_upload/1531633977627104fdecdc68fe7a2c4b96b2226fd3f4c.mp4_bd.mp4\tHTTP/1.1\t-\tbytes 13869056-13885439/25136186\tTCP_HIT/206\t112.29.213.35\tvideo/mp4\t17168\t16384\t-:0\t0\t0\t-\t-\t-\t11451601\t-\t\"JSP3/2.0.14\"\t\"-\"\t\"-\"\t\"-\"\thttp\t-\t2\tv1.go2yd.com\t0.002\t25136186\t16384\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t1531818470104-11451601-112.29.213.66#2705261172\t644514568";
+        String result = utils.parse(log);
+        System.out.println(result);
+    }
+}
+
+
+
+package com.ruozedata.hadoop.mapreduce.driver;
+
+import com.ruozedata.hadoop.mapreduce.mapper.LogETLMapper;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.NullWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+import java.io.FileInputStream;
+
+public class LogETLDriver {
+    public static void main(String[] args) throws Exception {
+        if(args.length != 2){
+            System.err.println("please input 2 params: input output");
+            System.exit(0);
+        }
+
+        String input = args[0];
+        String output = args[1];  //"output/d=20180717"
+
+        //在本地运行的window环境需要加上 而打包到服务器注释掉本行
+        System.setProperty("hadoop.home.dir","D:/IDEAMaven/hadoop-2.6.0-cdh5.7.0");
+
+        Configuration configuration = new Configuration();
+
+        FileSystem fileSystem = FileSystem.get(configuration);
+        Path outputPath = new Path(output);
+        if(fileSystem.exists(outputPath)){
+            fileSystem.delete(outputPath,true);
+        }
+
+        Job job = Job.getInstance(configuration);
+        job.setJarByClass(LogETLDriver.class);
+        job.setMapperClass(LogETLMapper.class);
+        job.setMapOutputKeyClass(NullWritable.class);
+        job.setMapOutputValueClass(Text.class);
+
+        FileInputFormat.setInputPaths(job,new Path(input));
+        FileOutputFormat.setOutputPath(job,new Path(output));
+
+
