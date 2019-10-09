@@ -1,0 +1,19 @@
+#!/bin/bash
+if [ $# != 1 ] ; then
+echo "USAGE: g6-train-hadoop.sh <dateString>"
+echo " e.g.: g6-train-hadoop.sh 20180717"
+exit 1;
+fi
+
+process_date=$1
+
+echo "--------------------step1: mapreduce etl--------------------"
+hadoop jar /home/hadoop/app/hadoop-2.6.0-cdh5.7.0/lib/g6-hadoop-1.0.jar com.ruozedata.hadoop.mapreduce.driver.LogETLDriver /g6/hadoop/accesslog/${process_date}.log /g6/hadoop/access/output/day=${process_date}
+
+echo "--------------------step2:mv data to DW--------------------"
+hdfs dfs -rm -r /g6/hadoop/access/clear/day=${process_date}
+## hdfs dfs -mkdir -p /g6/hadoop/access/clear/day=${process_date}
+hdfs dfs -mv  /g6/hadoop/access/output/day=${process_date} /g6/hadoop/access/clear/
+
+echo "--------------------step4:flush meatadata--------------------"
+hive -e "use g6_hadoop; alter table g6_access add if not exists partition(day='${process_date}');"
