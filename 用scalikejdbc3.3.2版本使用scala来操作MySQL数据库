@@ -1,0 +1,55 @@
+package com.ruozedata.bigdata.scalikejdbc
+import scalikejdbc._
+import scalikejdbc.config._
+
+
+case class User(id: Int,name: String, city: String)
+object ScalalikeJdbc {
+  def main(args: Array[String]): Unit = {
+    scalikejdbc.config.DBs.setupAll()
+
+    val userList:List[User] = List(User(1,"zhangsan","shanghai"),User(2,"wangwu","beijing"),User(3,"lisi","shenzhen"))
+    println("insert data:"+batchSave(userList))
+    println("select data:")
+    val users1 = select()
+    for (user <- users1){
+      println("id:"+user.id +" name:"+user.name+" city:"+user.city)
+    }
+    println("update id：1的city:"+update(10,"guangzhou"))
+    val users2 = select()
+    for (user <- users2){
+      println("id:"+user.id +" name:"+user.name+" city:"+user.city)
+    }
+    println("delete id:1:"+deleteByID(1))
+    println("delete id:2:"+deleteByID(2))
+    println("delete id:3:"+deleteByID(3))
+    DBs.closeAll()
+
+  }
+
+  def deleteByID(id:Int) = {
+    DB.autoCommit { implicit session =>
+      SQL("delete from test where id = ?").bind(id).update().apply()
+    }
+  }
+
+  def update(setcity:Int,city:String) {
+    DB.autoCommit { implicit session =>
+      SQL("update user set city = ? where id = ?").bind(setcity, city).update().apply()
+    }
+  }
+
+  def select():List[User] = {
+    DB.readOnly { implicit session =>
+      SQL("select * from user").map(rs => User(rs.int("id"), rs.string("name"), rs.string("city"))).list().apply()
+    }
+  }
+
+  def batchSave(users:List[User]) :Unit= {
+    DB.localTx { implicit session =>
+      for (user<- users){
+        SQL("insert into user(id,name,city) values(?,?,?)").bind(user.id, user.name, user.city).update().apply()
+      }
+    }
+  }
+}
